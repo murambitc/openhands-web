@@ -1,0 +1,474 @@
+-- ============================================================
+-- OPEN HANDS - Complete Database Schema
+-- ============================================================
+-- Run this script to recreate the entire database structure.
+-- Compatible with MySQL 5.7+ / MariaDB 10.3+
+-- ============================================================
+
+-- Create database if not exists
+CREATE DATABASE IF NOT EXISTS `openh1e3_open_hands`
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE `openh1e3_open_hands`;
+
+-- Disable FK checks during creation
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ============================================================
+-- 1. USERS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `users`;
+CREATE TABLE `users` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `username` VARCHAR(50) NOT NULL,
+    `email` VARCHAR(100) NOT NULL,
+    `password` VARCHAR(255) NOT NULL,
+    `role` ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+
+    -- Registration intake
+    `mood` VARCHAR(50) DEFAULT NULL,
+    `safety` VARCHAR(10) DEFAULT NULL,
+    `country` VARCHAR(50) DEFAULT NULL,
+    `location` VARCHAR(100) DEFAULT NULL,
+
+    -- Profile
+    `profile_image` VARCHAR(255) DEFAULT NULL,
+
+    -- Risk level (derived from latest screening)
+    `risk_level` ENUM('low', 'medium', 'high') NOT NULL DEFAULT 'low',
+
+    -- Last known location (for live map)
+    `lat` DECIMAL(10, 8) DEFAULT NULL,
+    `lng` DECIMAL(11, 8) DEFAULT NULL,
+    `last_lat` DECIMAL(10, 8) DEFAULT NULL,
+    `last_lon` DECIMAL(11, 8) DEFAULT NULL,
+    `last_active` DATETIME DEFAULT NULL,
+
+    -- Password recovery
+    `recovery_token` VARCHAR(255) DEFAULT NULL,
+    `recovery_expires` DATETIME DEFAULT NULL,
+
+    -- Metadata
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_username` (`username`),
+    UNIQUE KEY `unique_email` (`email`),
+    KEY `idx_role` (`role`),
+    KEY `idx_risk_level` (`risk_level`),
+    KEY `idx_created_at` (`created_at`),
+    KEY `idx_location` (`lat`, `lng`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 2. CHECKINS TABLE (mood logs)
+-- ============================================================
+DROP TABLE IF EXISTS `checkins`;
+CREATE TABLE `checkins` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_id` INT NOT NULL,
+    `mood` VARCHAR(100) NOT NULL,
+    `comment` TEXT,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_mood` (`mood`),
+    KEY `idx_created_at` (`created_at`),
+    CONSTRAINT `fk_checkins_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 3. GUEST_CHECKINS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `guest_checkins`;
+CREATE TABLE `guest_checkins` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `guest_name` VARCHAR(100) NOT NULL,
+    `mood` VARCHAR(100) NOT NULL,
+    `comment` TEXT,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_guest_name` (`guest_name`),
+    KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 4. ORGANIZATIONS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `organizations`;
+CREATE TABLE `organizations` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(150) NOT NULL,
+    `description` TEXT,
+    `phone` VARCHAR(30) DEFAULT NULL,
+    `whatsapp` VARCHAR(30) DEFAULT NULL,
+    `email` VARCHAR(100) DEFAULT NULL,
+    `website` VARCHAR(255) DEFAULT NULL,
+    `map_link` VARCHAR(500) DEFAULT NULL,
+    `logo` VARCHAR(255) DEFAULT NULL,
+    `latitude` DECIMAL(10, 8) DEFAULT NULL,
+    `longitude` DECIMAL(11, 8) DEFAULT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_name` (`name`),
+    KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 5. SCREENINGS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `screenings`;
+CREATE TABLE `screenings` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_id` INT NOT NULL,
+
+    -- Step 1: Basic Info
+    `age_group` VARCHAR(50) DEFAULT NULL,
+    `gender` VARCHAR(50) DEFAULT NULL,
+    `pronouns` VARCHAR(50) DEFAULT NULL,
+    `orientation` VARCHAR(50) DEFAULT NULL,
+    `counselor_preference` VARCHAR(20) DEFAULT NULL,
+
+    -- Step 2: Mental Health
+    `therapist_history` VARCHAR(20) DEFAULT NULL,
+    `main_concern` VARCHAR(100) DEFAULT NULL,
+    `mental_rating` VARCHAR(20) DEFAULT NULL,
+    `medication` VARCHAR(20) DEFAULT NULL,
+
+    -- Step 3: Lifestyle
+    `support_system` VARCHAR(20) DEFAULT NULL,
+    `substance_use` VARCHAR(20) DEFAULT NULL,
+    `sleep` VARCHAR(50) DEFAULT NULL,
+
+    -- Step 4: Safety
+    `self_harm` VARCHAR(20) DEFAULT NULL,
+    `danger` VARCHAR(20) DEFAULT NULL,
+    `support_need` VARCHAR(50) DEFAULT NULL,
+
+    -- Computed
+    `risk_level` ENUM('low', 'medium', 'high') NOT NULL DEFAULT 'low',
+
+    -- Referral
+    `preferred_referral` INT DEFAULT NULL,
+
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_risk_level` (`risk_level`),
+    KEY `idx_preferred_referral` (`preferred_referral`),
+    KEY `idx_created_at` (`created_at`),
+    CONSTRAINT `fk_screenings_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_screenings_org` FOREIGN KEY (`preferred_referral`)
+        REFERENCES `organizations` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 6. SESSIONS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `sessions`;
+CREATE TABLE `sessions` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `title` VARCHAR(150) NOT NULL,
+    `description` TEXT,
+    `session_date` DATE DEFAULT NULL,
+    `session_time` TIME DEFAULT NULL,
+    `location` VARCHAR(200) DEFAULT NULL,
+    `image` VARCHAR(255) DEFAULT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_session_date` (`session_date`),
+    KEY `idx_is_active` (`is_active`),
+    KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 7. CHAT_MESSAGES TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `chat_messages`;
+CREATE TABLE `chat_messages` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_id` INT NOT NULL,
+    `sender` ENUM('user', 'bot') NOT NULL DEFAULT 'user',
+    `message` TEXT NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_created_at` (`created_at`),
+    CONSTRAINT `fk_chat_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 8. PANIC_LOGS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `panic_logs`;
+CREATE TABLE `panic_logs` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_id` INT NOT NULL,
+    `latitude` DECIMAL(10, 8) DEFAULT NULL,
+    `longitude` DECIMAL(11, 8) DEFAULT NULL,
+    `lat` DECIMAL(10, 8) DEFAULT NULL,
+    `lon` DECIMAL(11, 8) DEFAULT NULL,
+    `resolved` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_created_at` (`created_at`),
+    KEY `idx_resolved` (`resolved`),
+    CONSTRAINT `fk_panic_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 9. SETTINGS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `settings`;
+CREATE TABLE `settings` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `setting_key` VARCHAR(100) NOT NULL,
+    `setting_value` TEXT,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unique_setting_key` (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 10. MAP_LINKS TABLE
+-- ============================================================
+DROP TABLE IF EXISTS `map_links`;
+CREATE TABLE `map_links` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `map_url` VARCHAR(1000) NOT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 11. PASSWORD_RESETS TABLE (optional, for secure recovery)
+-- ============================================================
+DROP TABLE IF EXISTS `password_resets`;
+CREATE TABLE `password_resets` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `email` VARCHAR(100) NOT NULL,
+    `token` VARCHAR(255) NOT NULL,
+    `expires_at` DATETIME NOT NULL,
+    `used` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_email` (`email`),
+    KEY `idx_token` (`token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 12. ACTIVITY_LOGS TABLE (optional, for admin auditing)
+-- ============================================================
+DROP TABLE IF EXISTS `activity_logs`;
+CREATE TABLE `activity_logs` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_id` INT DEFAULT NULL,
+    `action` VARCHAR(100) NOT NULL,
+    `details` TEXT,
+    `ip_address` VARCHAR(45) DEFAULT NULL,
+    `user_agent` VARCHAR(255) DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_action` (`action`),
+    KEY `idx_created_at` (`created_at`),
+    CONSTRAINT `fk_activity_user` FOREIGN KEY (`user_id`)
+        REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Re-enable FK checks
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================
+-- SEED DATA
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- Default admin user
+-- ------------------------------------------------------------
+-- Login: admin / Admin@123
+-- ⚠️ CHANGE THIS PASSWORD IMMEDIATELY AFTER FIRST LOGIN
+INSERT INTO `users`
+    (`username`, `email`, `password`, `role`, `country`, `location`)
+VALUES (
+    'admin',
+    'admin@openhands.co.bw',
+    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- hash of "password"
+    'admin',
+    'Botswana',
+    'Gaborone'
+);
+
+-- ------------------------------------------------------------
+-- Default settings
+-- ------------------------------------------------------------
+INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
+('footer_text', '© 2026 Open Hands App. All rights reserved.'),
+('site_name', 'Open Hands'),
+('contact_email', 'support@openhands.co.bw'),
+('emergency_phone', '999'),
+('ambulance_phone', '997'),
+('whatsapp_emergency', '26777649963');
+
+-- ------------------------------------------------------------
+-- Seed Organizations
+-- ------------------------------------------------------------
+INSERT INTO `organizations`
+    (`name`, `description`, `phone`, `whatsapp`, `email`, `website`, `map_link`, `latitude`, `longitude`)
+VALUES
+('Friends of Diversity',
+ 'Supports LGBTI youth through peer support, counseling & coaching',
+ '77649963', '26777649963', 'admin@friendsofdiversity.org.bw',
+ 'https://friendsofdiversity.org.bw',
+ 'https://maps.google.com/?q=-24.650818,25.917332',
+ -24.650818, 25.917332),
+
+('Ditshwanelo',
+ 'Botswana Centre for Human Rights focusing on justice & advocacy',
+ '3906698', '2673906698', 'admin.ditshwanelo@info.bw',
+ 'https://www.ditshwanelo.org.bw',
+ 'https://maps.google.com/?q=-24.650818,25.917332',
+ -24.650818, 25.917332),
+
+('LEGABIBO',
+ 'LGBTIQ+ rights organisation promoting equality & dignity',
+ NULL, NULL, 'legabibo@legabibo.org.bw',
+ 'https://legabibo.org.bw',
+ 'https://maps.google.com/?q=Gaborone',
+ -24.653000, 25.906000),
+
+('SISONKE Botswana',
+ 'Advocacy and support organisation',
+ '72553200', '26772553200', 'toshb@sisonkebotswana.org.bw',
+ 'https://sisonkebotswana.org.bw',
+ 'https://maps.google.com/?q=Delta Mall Gaborone',
+ -24.658000, 25.912000),
+
+('Nothing Without Us',
+ 'Advocacy organisation supporting inclusion',
+ '71793871', '26771793871', 'nothingwithoutuss@gmail.com',
+ NULL,
+ 'https://maps.google.com/?q=Francistown Botswana',
+ -21.170000, 27.500000),
+
+('Success Capital',
+ 'Community empowerment organisation',
+ '71562628', '26771562628', 'coordinator@successcapitalngo.com',
+ NULL,
+ 'https://maps.google.com/?q=Tlokweng Botswana',
+ -24.676000, 25.924000),
+
+('Silence Kills Support Group',
+ 'Mental health awareness & support',
+ '75944474', '26775944474', 'info@silencekills.online',
+ 'https://www.silencekills.online',
+ NULL,
+ -24.660000, 25.900000),
+
+('Valor Mental Health Foundation',
+ 'Mental health support services',
+ '73060044', '26773060044', 'info@vmhf.co.bw',
+ 'https://www.vmhf.co.bw',
+ NULL,
+ -24.640000, 25.910000),
+
+('PsycBotsogo',
+ 'Professional psychological services',
+ '3111194', '26776031085', 'info@psycbotsogo.co.bw',
+ 'https://psycbotsogo.co.bw',
+ NULL,
+ -24.670000, 25.920000),
+
+('Peo Clinical Psychology',
+ 'Clinical psychology consultancy services',
+ '73824717', '26773824717', 'info@peopsych.co.bw',
+ 'https://peopsych.co.bw',
+ NULL,
+ -24.665000, 25.918000),
+
+('Serenity Wellness Center',
+ 'Wellness and mental health support',
+ '74000000', '26774000000', 'info@serenitywellness.co.bw',
+ 'https://www.serenitywellness.co.bw',
+ NULL,
+ -24.680000, 25.930000),
+
+('Pameltex Mental Health',
+ 'Online and in-person mental health services',
+ NULL, NULL, 'info@pameltex.com',
+ 'https://www.pameltex.com',
+ NULL,
+ -24.650000, 25.905000);
+
+-- ------------------------------------------------------------
+-- Default map link
+-- ------------------------------------------------------------
+INSERT INTO `map_links` (`map_url`, `is_active`) VALUES
+('https://www.google.com/maps/d/u/0/embed?mid=1eNJo3Bj5vmyhIFEb8Ohrf4m6-dHCvEU&ehbc=2E312F&noprof=1', 1);
+
+-- ============================================================
+-- OPTIONAL: Stored Procedures & Triggers
+-- ============================================================
+
+-- Trigger to update user risk_level automatically after new screening
+DROP TRIGGER IF EXISTS `trg_screening_risk_update`;
+DELIMITER $$
+CREATE TRIGGER `trg_screening_risk_update`
+AFTER INSERT ON `screenings`
+FOR EACH ROW
+BEGIN
+    UPDATE `users`
+    SET `risk_level` = NEW.`risk_level`
+    WHERE `id` = NEW.`user_id`
+      AND (
+        NEW.`risk_level` = 'high'
+        OR `risk_level` <> 'high'
+      );
+END$$
+DELIMITER ;
+
+-- ============================================================
+-- VERIFICATION QUERIES
+-- ============================================================
+
+-- Show all tables
+SHOW TABLES;
+
+-- Quick summary
+SELECT
+    'users' AS table_name, COUNT(*) AS row_count FROM `users`
+UNION ALL SELECT 'checkins', COUNT(*) FROM `checkins`
+UNION ALL SELECT 'organizations', COUNT(*) FROM `organizations`
+UNION ALL SELECT 'sessions', COUNT(*) FROM `sessions`
+UNION ALL SELECT 'screenings', COUNT(*) FROM `screenings`
+UNION ALL SELECT 'map_links', COUNT(*) FROM `map_links`
+UNION ALL SELECT 'settings', COUNT(*) FROM `settings`;
+
+-- ============================================================
+-- END OF SCHEMA
+-- ============================================================

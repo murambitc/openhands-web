@@ -1,0 +1,27 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\MapLink;
+use App\Models\Setting;
+use Illuminate\Database\Seeder;
+
+class SettingsSeeder extends Seeder
+{
+    public function run(): void
+    {
+        // Footer text
+        Setting::updateOrCreate(
+            ['setting_key' => 'footer_text'],
+            ['setting_value' => '© ' . date('Y') . ' Open Hands App. All rights reserved.']
+        );
+
+        // Default map link (only if none exists)
+        if (MapLink::where('is_active', true)->doesntExist()) {
+            MapLink::create([
+                'map_url'   => 'https://www.google.com/maps/d/u/0/embed?mid=1eNJo3Bj5vmyhIFEb8Ohrf4m6-dHCvEU&ehbc=2E312F&noprof=1',
+                'is_active' => true,
+            ]);
+        }
+    }
+}
