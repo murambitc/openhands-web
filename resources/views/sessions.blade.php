@@ -133,7 +133,6 @@
     .ses-empty h5 { color: #fff; font-size: 16px; margin-bottom: 6px; }
     .ses-empty p { font-size: 13px; margin-bottom: 0; }
 
-    /* Detail modal */
     .modal-content {
         background: rgba(27, 42, 71, 0.98) !important;
         backdrop-filter: blur(16px);
@@ -187,6 +186,16 @@
 @endpush
 
 @section('content')
+@php
+    $sessionImageUrl = static function ($session) {
+        if (empty($session->image)) {
+            return null;
+        }
+        $ver = $session->updated_at ? '?v=' . $session->updated_at->timestamp : '';
+        return asset('storage/' . ltrim($session->image, '/')) . $ver;
+    };
+@endphp
+
 <div class="ses-wrap">
     <h3 class="ses-title">📢 Sessions & Activities</h3>
     <p class="ses-subtitle">Upcoming wellness events, workshops, and gatherings.</p>
@@ -194,16 +203,15 @@
     @if ($sessions->count() > 0)
         <div class="ses-grid">
             @foreach ($sessions as $session)
+                @php $imgUrl = $sessionImageUrl($session); @endphp
                 <div class="ses-card">
-                    {{-- Image --}}
                     <div class="ses-image"
-                         style="{{ $session->image ? 'background-image:url(' . asset('storage/' . $session->image) . ')' : '' }}">
-                        @if (!$session->image)
+                         style="{{ $imgUrl ? 'background-image:url(' . e($imgUrl) . ')' : '' }}">
+                        @if (!$imgUrl)
                             <i class="bi bi-calendar-event"></i>
                         @endif
                     </div>
 
-                    {{-- Body --}}
                     <div class="ses-body">
                         <h5 class="ses-heading">{{ $session->title }}</h5>
                         <p class="ses-desc">{{ $session->description }}</p>
@@ -232,9 +240,9 @@
                         </div>
 
                         <button type="button"
-                                class="wt-btn wt-btn-primary"
+                                class="btn btn-nk-primary wt-btn wt-btn-primary"
                                 style="width: 100%; margin-top: 8px; padding: 10px;"
-                                onclick='openSessionModal(@json($session->title), @json($session->description), @json($session->session_date ? \Carbon\Carbon::parse($session->session_date)->format("l, d F Y") : null), @json($session->session_time ? \Carbon\Carbon::parse($session->session_time)->format("g:i A") : null), @json($session->location), @json($session->image ? asset("storage/" . $session->image) : null))'>
+                                onclick='openSessionModal(@json($session->title), @json($session->description), @json($session->session_date ? \Carbon\Carbon::parse($session->session_date)->format("l, d F Y") : null), @json($session->session_time ? \Carbon\Carbon::parse($session->session_time)->format("g:i A") : null), @json($session->location), @json($imgUrl))'>
                             View Details
                         </button>
                     </div>
@@ -250,7 +258,6 @@
     @endif
 </div>
 
-{{-- SESSION DETAIL MODAL --}}
 <div class="modal fade" id="sessionModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -281,7 +288,7 @@
             </div>
             <div class="modal-footer" style="border-color: rgba(255,255,255,0.1);">
                 <button type="button"
-                        class="wt-btn wt-btn-primary"
+                        class="btn btn-nk-primary wt-btn wt-btn-primary"
                         data-bs-dismiss="modal"
                         style="width: auto; padding: 10px 24px;">
                     Close
@@ -298,23 +305,18 @@
     'use strict';
 
     window.openSessionModal = function (title, description, date, time, location, imageUrl) {
-        // Title
         document.getElementById('sesModalTitle').textContent = title || 'Session';
-
-        // Description
         document.getElementById('sesModalDesc').textContent = description || 'No description available.';
 
-        // Image
         const imgEl = document.getElementById('sesModalImg');
         if (imageUrl) {
-            imgEl.style.backgroundImage = `url(${imageUrl})`;
+            imgEl.style.backgroundImage = `url("${imageUrl}")`;
             imgEl.innerHTML = '';
         } else {
             imgEl.style.backgroundImage = '';
             imgEl.innerHTML = '<i class="bi bi-calendar-event"></i>';
         }
 
-        // Date
         const dateRow = document.getElementById('sesModalDate');
         if (date) {
             dateRow.style.display = 'flex';
@@ -323,7 +325,6 @@
             dateRow.style.display = 'none';
         }
 
-        // Time
         const timeRow = document.getElementById('sesModalTime');
         if (time) {
             timeRow.style.display = 'flex';
@@ -332,7 +333,6 @@
             timeRow.style.display = 'none';
         }
 
-        // Location
         const locationRow = document.getElementById('sesModalLocation');
         if (location) {
             locationRow.style.display = 'flex';
@@ -341,7 +341,8 @@
             locationRow.style.display = 'none';
         }
 
-        new bootstrap.Modal(document.getElementById('sessionModal')).show();
+        const modalEl = document.getElementById('sessionModal');
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     };
 })();
 </script>

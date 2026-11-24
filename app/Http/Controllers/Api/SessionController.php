@@ -31,7 +31,7 @@ class SessionController extends ApiController
             'session_date' => $s->session_date?->format('Y-m-d'),
             'session_time' => $s->session_time,
             'location'     => $s->location,
-            'image_url'    => $s->image ? asset('storage/' . $s->image) : null,
+            'image_url'    => $s->image ? asset( $s->image) : null,
             'is_active'    => (bool) $s->is_active,
             'created_at'   => $s->created_at->toIso8601String(),
         ];

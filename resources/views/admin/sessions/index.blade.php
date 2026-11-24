@@ -222,7 +222,7 @@
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <div class="as-thumb">
                                         @if ($session->image)
-                                            <img src="{{ asset('storage/' . $session->image) }}" alt="">
+                                            <img src="{{ asset( $session->image) }}" alt="">
                                         @else
                                             <i class="bi bi-calendar-event"></i>
                                         @endif
